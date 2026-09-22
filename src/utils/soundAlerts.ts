@@ -53,6 +53,10 @@ class SoundAlertManager {
    * Campana de aviso para el Jefe de Almacén (Nuevo Pedido Entrante)
    */
   public playNewOrderAlert() {
+    this.playNewOrderTone();
+  }
+
+  public playNewOrderTone() {
     if (!this.soundEnabled) return;
     try {
       const ctx = this.getContext();

@@ -3,7 +3,9 @@ import { useAppStore } from '../../store/appStore';
 import { Order, OrderStatus } from '../../types';
 import { WarehouseFleetOverviewMap } from '../map/WarehouseFleetOverviewMap';
 import { LiveTrackingMap } from '../map/LiveTrackingMap';
+import { DispatchGuideModal } from '../common/DispatchGuideModal';
 import { formatPEN, formatDate, getStatusDetails } from '../../utils/formatters';
+import { requestNotificationPermission, getNotificationPermissionStatus } from '../../utils/browserNotifications';
 import { 
   Package, 
   Truck, 
@@ -18,7 +20,10 @@ import {
   ExternalLink,
   ChevronRight,
   TrendingUp,
-  ShieldAlert
+  ShieldAlert,
+  FileText,
+  AlertOctagon,
+  Bell
 } from 'lucide-react';
 
 import { soundAlerts } from '../../utils/soundAlerts';
@@ -35,12 +40,15 @@ export const WarehouseDashboard: React.FC<Props> = ({ onOpenOrderDetails }) => {
     updateOrderStatus, 
     assignWorker, 
     startDriverRoute,
-    createDemoOrder
+    createDemoOrder,
+    resolveSecurityAlert
   } = useAppStore();
 
   const [dateFilter, setDateFilter] = useState<'todos' | 'hoy' | 'manana' | 'semana'>('todos');
   const [activeTab, setActiveTab] = useState<'mapa' | 'pedidos' | 'inventario'>('pedidos');
   const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<Order | null>(null);
+  const [guideModalOrder, setGuideModalOrder] = useState<Order | null>(null);
+  const [nativeNotifStatus, setNativeNotifStatus] = useState<string>(getNotificationPermissionStatus());
 
   const todayStr = new Date().toISOString().split('T')[0];
   const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
@@ -59,6 +67,11 @@ export const WarehouseDashboard: React.FC<Props> = ({ onOpenOrderDetails }) => {
   const inTransitOrders = orders.filter((o) => o.status === 'en_camino');
   const deliveredOrders = orders.filter((o) => o.status === 'entregado');
 
+  // Pedidos con alerta de seguridad (Desvío de ruta / SOS)
+  const securityAlertOrders = orders.filter(
+    (o) => o.telemetry?.securityAlert && !o.telemetry.securityAlert.resolved
+  );
+
   // Productos con stock crítico
   const lowStockProducts = products.filter((p) => p.totalStock <= p.minStockAlert);
 
@@ -67,6 +80,77 @@ export const WarehouseDashboard: React.FC<Props> = ({ onOpenOrderDetails }) => {
 
   return (
     <div className="space-y-6 pb-12">
+      {/* ALERTA ROJA DE SEGURIDAD ANTI-ROBO (DESVÍO O BOTÓN SOS) */}
+      {securityAlertOrders.length > 0 && (
+        <div className="bg-red-600 text-white p-4 rounded-2xl shadow-xl border-2 border-red-300 space-y-3 animate-pulse">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-white text-red-600 flex items-center justify-center shadow-lg shrink-0">
+                <AlertOctagon className="w-8 h-8" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-black tracking-wider bg-black/40 text-amber-300 px-2 py-0.5 rounded">
+                  INCIDENTE DE SEGURIDAD EN TIEMPO REAL
+                </span>
+                <h3 className="text-base font-black">
+                  🚨 {securityAlertOrders.length} Alerta(s) de Desvío / Pánico en Ruta
+                </h3>
+                <p className="text-xs text-red-100">
+                  Se requiere verificación urgente por parte de la jefatura de almacén y seguridad logística.
+                </p>
+              </div>
+            </div>
+
+            <span className="text-xs bg-red-950 px-3 py-1.5 rounded-lg border border-red-400 font-mono font-bold">
+              AUDITORÍA SATELITAL ACTIVA
+            </span>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-red-400/60">
+            {securityAlertOrders.map((ord) => (
+              <div key={ord.id} className="bg-red-950/70 p-3 rounded-xl border border-red-400 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <strong className="text-amber-300 font-mono text-sm">{ord.orderNumber}</strong>
+                    <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase">
+                      {ord.telemetry?.securityAlert?.type === 'panico_sos' ? 'SOS Chofer' : 'Desvío de Ruta'}
+                    </span>
+                    <span className="text-slate-300">Unidad: <strong>{ord.telemetry?.vehiclePlate}</strong></span>
+                    <span className="text-slate-300">Chofer: <strong>{ord.telemetry?.driverName}</strong></span>
+                  </div>
+                  <p className="text-slate-200">
+                    {ord.telemetry?.securityAlert?.description}
+                  </p>
+                  <p className="text-[11px] text-amber-200">
+                    📍 Ubicación reportada: <strong>{ord.telemetry?.securityAlert?.streetName || 'Calles de Lima'}</strong> a las {ord.telemetry?.securityAlert?.reportedAt}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab('mapa');
+                      setSelectedOrderForTracking(ord);
+                    }}
+                    className="px-3 py-1.5 bg-white text-slate-950 hover:bg-slate-100 font-bold rounded-lg transition text-xs flex items-center gap-1 shadow"
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Ver en Mapa</span>
+                  </button>
+
+                  <button
+                    onClick={() => resolveSecurityAlert(ord.id, 'Verificado con el chofer telefónicamente. Situación controlada.')}
+                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-lg transition text-xs shadow"
+                  >
+                    ✓ Marcar Resuelto
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Banner de Alerta Activa para el Jefe de Almacén (Sustituye WhatsApp) */}
       {pendingOrders.length > 0 && (
         <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 p-4 rounded-2xl shadow-lg border-2 border-amber-300 flex flex-wrap items-center justify-between gap-4 animate-pulse">
@@ -113,15 +197,29 @@ export const WarehouseDashboard: React.FC<Props> = ({ onOpenOrderDetails }) => {
           </div>
           <div>
             <span className="text-xs font-bold text-slate-800 block">
-              Simulador en Tiempo Real de Pedidos y Despachos
+              Control Operativo y Simulador en Tiempo Real
             </span>
             <span className="text-[11px] text-slate-500">
-              Genera pedidos inmediatos con geolocalización en Lima para probar la campana y la torre de control
+              Prueba la campana sonora, genera pedidos simulados y gestiona notificaciones nativas
             </span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {nativeNotifStatus !== 'granted' && (
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await requestNotificationPermission();
+                setNativeNotifStatus(ok ? 'granted' : 'denied');
+              }}
+              className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs rounded-xl transition border border-blue-200 flex items-center gap-1.5"
+            >
+              <Bell className="w-4 h-4 text-blue-600 animate-bounce" />
+              <span>Activar Notificaciones Windows</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -130,7 +228,7 @@ export const WarehouseDashboard: React.FC<Props> = ({ onOpenOrderDetails }) => {
             className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs rounded-xl shadow-sm transition active:scale-95 flex items-center gap-1.5"
           >
             <BellRing className="w-4 h-4" />
-            <span>⚡ Simular Pedido con GPS (Probar Alarma)</span>
+            <span>⚡ Simular Pedido con GPS (Alarma)</span>
           </button>
 
           <button
@@ -427,6 +525,17 @@ export const WarehouseDashboard: React.FC<Props> = ({ onOpenOrderDetails }) => {
                         </div>
                       )}
 
+                      {/* Ver Guía SUNAT Oficial */}
+                      <button
+                        type="button"
+                        onClick={() => setGuideModalOrder(order)}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition border border-slate-300 flex items-center justify-center gap-1"
+                        title="Ver / Imprimir Guía de Remisión SUNAT"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Guía SUNAT</span>
+                      </button>
+
                       {/* Botón de Despacho Inmediato */}
                       {isReady && order.assignedDriverId && (
                         <button
@@ -542,6 +651,13 @@ export const WarehouseDashboard: React.FC<Props> = ({ onOpenOrderDetails }) => {
           </div>
         </div>
       )}
+
+      {/* Modal Oficial de Guía de Remisión SUNAT con QR */}
+      <DispatchGuideModal
+        order={guideModalOrder}
+        isOpen={!!guideModalOrder}
+        onClose={() => setGuideModalOrder(null)}
+      />
     </div>
   );
 };

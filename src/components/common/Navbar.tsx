@@ -3,6 +3,10 @@ import { UserRole } from '../../types';
 import { useAppStore } from '../../store/appStore';
 import { soundAlerts } from '../../utils/soundAlerts';
 import { 
+  requestNotificationPermission, 
+  getNotificationPermissionStatus 
+} from '../../utils/browserNotifications';
+import { 
   ShoppingCart, 
   Bell, 
   Volume2, 
@@ -24,6 +28,7 @@ interface Props {
 export const Navbar: React.FC<Props> = ({ onOpenCart, onOpenOrderTracking }) => {
   const { role, setRole, cart, orders } = useAppStore();
   const [soundActive, setSoundActive] = useState(soundAlerts.isSoundEnabled());
+  const [notifPermission, setNotifPermission] = useState<string>(getNotificationPermissionStatus());
 
   const pendingOrdersCount = orders.filter((o) => o.status === 'pendiente').length;
   const inTransitCount = orders.filter((o) => o.status === 'en_camino').length;
@@ -117,6 +122,26 @@ export const Navbar: React.FC<Props> = ({ onOpenCart, onOpenOrderTracking }) => 
           >
             {soundActive ? <Volume2 className="w-4 h-4 text-blue-600" /> : <VolumeX className="w-4 h-4" />}
             <span className="hidden lg:inline">{soundActive ? 'Alerta Sonora Activa' : 'Sonido Silenciado'}</span>
+          </button>
+
+          {/* Botón de Notificaciones Nativas Web Push */}
+          <button
+            onClick={async () => {
+              const granted = await requestNotificationPermission();
+              setNotifPermission(granted ? 'granted' : 'denied');
+              if (granted) soundAlerts.playSuccessTone();
+            }}
+            title={notifPermission === 'granted' ? 'Notificaciones nativas activas en Windows/móvil' : 'Activar notificaciones en segundo plano'}
+            className={`p-2 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition ${
+              notifPermission === 'granted'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <Bell className={`w-4 h-4 ${notifPermission === 'granted' ? 'text-emerald-600' : 'text-slate-500'}`} />
+            <span className="hidden xl:inline">
+              {notifPermission === 'granted' ? 'Notificaciones Push OK' : 'Activar Push'}
+            </span>
           </button>
 
           {/* Botón Rastreo de Pedido para Clientes */}

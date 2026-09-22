@@ -17,6 +17,16 @@ export const INITIAL_PRODUCTS: Product[] = [
     totalStock: 240,
     minStockAlert: 50,
     isPopular: true,
+    technicalSheet: {
+      ph: '12.8 ± 0.3 (Alcalino desinfectante)',
+      activeConcentration: 'Hipoclorito de Sodio al 5.5% P/V (55,000 ppm)',
+      biodegradability: 'Descomposición en sales minerales inocuas al drenaje',
+      sanitaryRegisterDigesa: 'DIGESA-DEPA N° 02419-2024 / MINSA PERÚ',
+      colorAndAppearance: 'Líquido límpido translúcido con leve tonalidad verdosa y olor clorado característico',
+      safetyEquipmentRecommended: ['Guantes de nitrilo o neopreno', 'Lentes panorámicos anti-salpicaduras', 'Delantal impermeable', 'Mascarilla para vapores'],
+      handlingPrecautions: 'Almacenar en envase original opaco a temperatura menor a 30°C. Prohibido mezclar con ácidos o amoniaco.',
+      msdsDocumentCode: 'MSDS-SC-LEJ001-REV05',
+    },
   },
   {
     id: 'prod-2',

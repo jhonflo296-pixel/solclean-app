@@ -214,3 +214,51 @@ export function generateRouteWaypoints(
 export function formatCoords(lat: number, lng: number): string {
   return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
 }
+
+/**
+ * Calcula distancia precisa en metros entre dos coordenadas
+ */
+export function calculateDistanceMeters(coord1: GeoCoordinate, coord2: GeoCoordinate): number {
+  return Math.round(calculateDistanceKm(coord1, coord2) * 1000);
+}
+
+/**
+ * Verifica si el vehículo se ha desviado de la ruta planificada por calles
+ * (Anti-Robo y Auditoría de Seguridad).
+ * @param currentPos Coordenada actual del GPS
+ * @param plannedWaypoints Ruta oficial trazada
+ * @param thresholdMeters Distancia máxima permitida en metros antes de disparar alerta (default 380m)
+ */
+export function checkRouteDeviation(
+  currentPos: GeoCoordinate,
+  plannedWaypoints: StreetWaypoint[] | undefined,
+  thresholdMeters: number = 380
+): {
+  isDeviated: boolean;
+  minDistanceMeters: number;
+  nearestStreetName: string;
+} {
+  if (!plannedWaypoints || plannedWaypoints.length === 0) {
+    return { isDeviated: false, minDistanceMeters: 0, nearestStreetName: 'En ruta' };
+  }
+
+  let minDistanceMeters = Infinity;
+  let nearestStreetName = plannedWaypoints[0].streetName || 'Vía planificada';
+
+  for (const wp of plannedWaypoints) {
+    const dist = calculateDistanceMeters(currentPos, wp);
+    if (dist < minDistanceMeters) {
+      minDistanceMeters = dist;
+      nearestStreetName = wp.streetName;
+    }
+  }
+
+  const isDeviated = minDistanceMeters > thresholdMeters;
+
+  return {
+    isDeviated,
+    minDistanceMeters,
+    nearestStreetName,
+  };
+}
+

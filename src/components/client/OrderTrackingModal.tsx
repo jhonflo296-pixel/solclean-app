@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Order } from '../../types';
 import { LiveTrackingMap } from '../map/LiveTrackingMap';
+import { DispatchGuideModal } from '../common/DispatchGuideModal';
 import { formatPEN, formatDate, getStatusDetails } from '../../utils/formatters';
 import { 
   X, 
@@ -11,7 +12,9 @@ import {
   Clock, 
   Truck, 
   ShieldCheck, 
-  PackageCheck
+  PackageCheck,
+  FileText,
+  PenTool
 } from 'lucide-react';
 
 import { useAppStore } from '../../store/appStore';
@@ -30,7 +33,8 @@ export const OrderTrackingModal: React.FC<Props> = ({
   onSelectOrder,
 }) => {
   const { orders } = useAppStore();
-  const [selectedId, setSelectedId] = React.useState<string>(propOrder?.id || '');
+  const [selectedId, setSelectedId] = useState<string>(propOrder?.id || '');
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   React.useEffect(() => {
     if (propOrder) setSelectedId(propOrder.id);
@@ -300,8 +304,56 @@ export const OrderTrackingModal: React.FC<Props> = ({
               </div>
 
               {currentOrder.deliveryProof && (
-                <div className="mt-2 p-2 bg-emerald-50 rounded-lg border border-emerald-200 text-emerald-900 text-[11px]">
-                  <strong>Recibido por:</strong> {currentOrder.deliveryProof.receivedBy} a las {new Date(currentOrder.deliveryProof.deliveredAt).toLocaleTimeString()}
+                <div className="mt-2 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-950 text-[11px] space-y-2">
+                  <div className="flex items-center justify-between border-b border-emerald-200/60 pb-1.5 font-bold">
+                    <span className="flex items-center gap-1 text-emerald-800">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Comprobante de Entrega Certificada</span>
+                    </span>
+                    <span className="text-[10px] text-emerald-600 font-mono">
+                      {new Date(currentOrder.deliveryProof.deliveredAt).toLocaleTimeString()}
+                    </span>
+                  </div>
+
+                  <p>
+                    <strong>Recibido conforme por:</strong> {currentOrder.deliveryProof.receivedBy}
+                    {currentOrder.deliveryProof.dniRuc && ` (DNI/RUC: ${currentOrder.deliveryProof.dniRuc})`}
+                  </p>
+
+                  {/* Firma Digital en Canvas si existe */}
+                  {currentOrder.deliveryProof.signatureDataUrl && (
+                    <div className="bg-white p-2 rounded-lg border border-emerald-200">
+                      <span className="text-[10px] text-slate-500 font-bold block mb-1 flex items-center gap-1">
+                        <PenTool className="w-3 h-3 text-blue-600" />
+                        Firma Digital Registrada en Pantalla:
+                      </span>
+                      <img
+                        src={currentOrder.deliveryProof.signatureDataUrl}
+                        alt="Firma del receptor"
+                        className="h-16 max-w-full object-contain mx-auto"
+                      />
+                    </div>
+                  )}
+
+                  {/* Foto de Entrega */}
+                  {currentOrder.deliveryProof.photoProofUrl && (
+                    <div className="bg-white p-2 rounded-lg border border-emerald-200 flex items-center gap-2">
+                      <img
+                        src={currentOrder.deliveryProof.photoProofUrl}
+                        alt="Foto de entrega"
+                        className="w-14 h-14 object-cover rounded-md border"
+                      />
+                      <span className="text-[10px] text-slate-600 font-medium">
+                        Fotografía en puerta registrada por el chofer
+                      </span>
+                    </div>
+                  )}
+
+                  {currentOrder.deliveryProof.notes && (
+                    <p className="text-[10px] text-emerald-800 italic">
+                      "{currentOrder.deliveryProof.notes}"
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -309,7 +361,16 @@ export const OrderTrackingModal: React.FC<Props> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-3 bg-slate-100 border-t border-slate-200 flex justify-end">
+        <div className="p-3 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setIsGuideOpen(true)}
+            className="px-3.5 py-1.5 bg-white hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-lg transition border border-slate-300 flex items-center gap-1.5 shadow-sm"
+          >
+            <FileText className="w-3.5 h-3.5 text-blue-600" />
+            <span>Ver Guía de Remisión SUNAT</span>
+          </button>
+
           <button
             onClick={onClose}
             className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition"
@@ -318,6 +379,13 @@ export const OrderTrackingModal: React.FC<Props> = ({
           </button>
         </div>
       </div>
+
+      {/* Modal Guía SUNAT */}
+      <DispatchGuideModal
+        order={currentOrder}
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+      />
     </div>
   );
 };

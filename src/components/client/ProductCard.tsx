@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Product, ProductPresentation } from '../../types';
 import { useAppStore } from '../../store/appStore';
 import { formatPEN } from '../../utils/formatters';
-import { ShoppingCart, Check, ShieldAlert } from 'lucide-react';
+import { ShoppingCart, Check, ShieldAlert, FileText } from 'lucide-react';
+import { TechnicalSheetModal } from './TechnicalSheetModal';
 
 interface Props {
   product: Product;
@@ -14,6 +15,7 @@ export const ProductCard: React.FC<Props> = ({ product }) => {
     product.presentations[0] || { size: '1 Unidad', price: product.basePrice, stock: product.totalStock }
   );
   const [addedAnimation, setAddedAnimation] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const handleAddToCart = () => {
     addToCart({
@@ -133,8 +135,25 @@ export const ProductCard: React.FC<Props> = ({ product }) => {
               </>
             )}
           </button>
+
+          {/* Botón de Ficha Técnica & Hoja de Seguridad MSDS */}
+          <button
+            type="button"
+            onClick={() => setIsSheetOpen(true)}
+            className="w-full mt-2 py-1.5 px-3 rounded-lg font-semibold text-[11px] text-slate-600 hover:text-blue-700 hover:bg-blue-50 border border-slate-200 transition flex items-center justify-center gap-1.5"
+          >
+            <FileText className="w-3.5 h-3.5 text-blue-600" />
+            <span>Ficha Técnica Oficial & MSDS</span>
+          </button>
         </div>
       </div>
+
+      {/* Modal Ficha Técnica */}
+      <TechnicalSheetModal
+        product={product}
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+      />
     </div>
   );
 };

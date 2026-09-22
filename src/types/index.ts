@@ -22,6 +22,17 @@ export interface ProductPresentation {
   stock: number;
 }
 
+export interface TechnicalSheet {
+  ph: string;
+  activeConcentration: string;
+  biodegradability: string;
+  sanitaryRegisterDigesa: string;
+  colorAndAppearance: string;
+  safetyEquipmentRecommended: string[];
+  handlingPrecautions: string;
+  msdsDocumentCode: string;
+}
+
 export interface Product {
   id: string;
   sku: string;
@@ -34,6 +45,7 @@ export interface Product {
   totalStock: number;
   minStockAlert: number;
   isPopular?: boolean;
+  technicalSheet?: TechnicalSheet;
 }
 
 export interface CartItem {
@@ -74,6 +86,19 @@ export interface StreetWaypoint extends GeoCoordinate {
   streetName: string;
 }
 
+export interface SecurityAlert {
+  id: string;
+  type: 'desvio_ruta' | 'parada_prolongada' | 'panico_sos';
+  title: string;
+  description: string;
+  reportedAt: string;
+  location: GeoCoordinate;
+  streetName?: string;
+  resolved: boolean;
+  resolvedAt?: string;
+  resolvedNotes?: string;
+}
+
 export interface DriverTelemetry {
   driverId: string;
   driverName: string;
@@ -84,6 +109,8 @@ export interface DriverTelemetry {
   currentStreet: string; // Nombre de la calle/avenida real por donde circula el auto
   nextStreet?: string;   // Próxima avenida en la ruta
   proximityAlert?: ProximityAlert; // Alerta de qué tan cerca está del cliente
+  securityAlert?: SecurityAlert;   // Alerta de seguridad anti-robo o desvío
+  hasDeviation?: boolean;          // Bandera activa si se salió de la ruta de calles
   pathTraveled: Array<GeoCoordinate & { timestamp: string; speed?: number; streetName?: string }>;
   plannedStreetRoute?: StreetWaypoint[]; // Geometría real de calles trazada por OSRM
   etaMinutes: number;
@@ -102,6 +129,15 @@ export interface OrderItem {
   unitPrice: number;
   quantity: number;
   picked?: boolean; // Para checklist de operario
+}
+
+export interface DeliveryProof {
+  receivedBy: string;
+  dniRuc?: string;
+  deliveredAt: string;
+  signatureDataUrl?: string; // Firma táctil en canvas
+  photoProofUrl?: string;    // Foto de entrega en puerta
+  notes?: string;
 }
 
 export interface Order {
@@ -132,11 +168,7 @@ export interface Order {
   assignedDriverId?: string; // Conductor repartidor
   assignedDriverName?: string;
   telemetry?: DriverTelemetry;
-  deliveryProof?: {
-    receivedBy: string;
-    deliveredAt: string;
-    notes?: string;
-  };
+  deliveryProof?: DeliveryProof;
 }
 
 export interface SupplierOrder {

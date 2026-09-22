@@ -8,7 +8,9 @@ import {
   SupplierOrder, 
   WarehouseWorker, 
   DeliveryLocation,
-  GeoCoordinate
+  GeoCoordinate,
+  SecurityAlert,
+  DeliveryProof
 } from '../types';
 import { 
   INITIAL_PRODUCTS, 
@@ -17,13 +19,15 @@ import {
   WAREHOUSE_WORKERS 
 } from '../data/mockData';
 import { soundAlerts } from '../utils/soundAlerts';
+import { sendNativeNotification } from '../utils/browserNotifications';
 import { 
   WAREHOUSE_LOCATION, 
   calculateDistanceKm, 
   calculateEtaMinutes, 
   generateRouteWaypoints,
   fetchRealStreetRoute,
-  computeProximityAlert
+  computeProximityAlert,
+  checkRouteDeviation
 } from '../utils/geoUtils';
 
 const STORAGE_KEYS = {
@@ -211,6 +215,11 @@ class StoreManager {
 
     // 🔔 ¡Alerta sonora y visual inmediata para el Jefe de Almacén!
     soundAlerts.playNewOrderAlert();
+    sendNativeNotification('📦 Nuevo Pedido Recibido en Almacén', {
+      body: `Orden ${newOrder.orderNumber} por S/ ${newOrder.total.toFixed(2)} para ${newOrder.customer.name} (${newOrder.deliveryLocation.district}).`,
+      soundType: 'new_order',
+      requireInteraction: true,
+    });
 
     this.notify();
     return newOrder;
@@ -417,8 +426,20 @@ class StoreManager {
         liveOrder.telemetry.driverName
       );
 
-      if (newAlert.level === 'muy_cerca' && prevLevel !== 'muy_cerca') {
+      // Notificaciones nativas del navegador según proximidad
+      if (newAlert.level === 'en_puerta' && prevLevel !== 'en_puerta') {
         soundAlerts.playSuccessTone();
+        sendNativeNotification('🔔 ¡Tu pedido Sol Clean llegó a tu puerta!', {
+          body: `El chofer ${liveOrder.telemetry.driverName} está estacionando en tu dirección (${liveOrder.deliveryLocation.address}).`,
+          soundType: 'success',
+          requireInteraction: true,
+        });
+      } else if (newAlert.level === 'muy_cerca' && prevLevel !== 'muy_cerca') {
+        soundAlerts.playSuccessTone();
+        sendNativeNotification('⚡ ¡Tu pedido Sol Clean está a pocas cuadras!', {
+          body: `El vehículo circula por ${currentStreet} y llegará en aproximadamente ${eta} min.`,
+          soundType: 'alert',
+        });
       }
 
       liveOrder.telemetry.currentPosition = { lat: nextPoint.lat, lng: nextPoint.lng };
@@ -491,7 +512,101 @@ class StoreManager {
     this.notify();
   }
 
-  public confirmDelivery(orderId: string, proof: { receivedBy: string; notes?: string }) {
+  // Disparar Alerta SOS de Pánico desde la app del conductor
+  public triggerPanicAlert(orderId: string, reason: string = 'Auxilio / Emergencia en ruta') {
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order || !order.telemetry) return;
+
+    const alertId = `sec-${Date.now()}`;
+    const newAlert: SecurityAlert = {
+      id: alertId,
+      type: 'panico_sos',
+      title: '🚨 ALERTA SOS: BOTÓN DE PÁNICO ACTIVADO',
+      description: `El chofer ${order.telemetry.driverName} reportó emergencia en ${order.telemetry.currentStreet || 'ruta'}: ${reason}`,
+      reportedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      location: { ...order.telemetry.currentPosition },
+      streetName: order.telemetry.currentStreet,
+      resolved: false,
+    };
+
+    order.telemetry.securityAlert = newAlert;
+    soundAlerts.playNewOrderTone();
+
+    sendNativeNotification('🚨 ALERTA SOS ACTIVADA', {
+      body: `Unidad ${order.telemetry.vehiclePlate} (${order.telemetry.driverName}): ${reason}`,
+      soundType: 'alert',
+      requireInteraction: true,
+    });
+
+    this.notify();
+  }
+
+  // Simular desvío no autorizado de ruta para pruebas de seguridad
+  public simulateRouteDeviation(orderId: string) {
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order || !order.telemetry) return;
+
+    // Desviar posición 850m hacia una vía alterna no planificada
+    const deviatedLat = order.telemetry.currentPosition.lat + 0.0075;
+    const deviatedLng = order.telemetry.currentPosition.lng - 0.0065;
+    const deviatedStreet = 'Pasaje Inesperado / Vía no Autorizada (Fuera de Ruta)';
+
+    order.telemetry.currentPosition = { lat: deviatedLat, lng: deviatedLng };
+    order.telemetry.currentStreet = deviatedStreet;
+    order.telemetry.hasDeviation = true;
+
+    order.telemetry.securityAlert = {
+      id: `sec-${Date.now()}`,
+      type: 'desvio_ruta',
+      title: '⚠️ ALERTA DE SEGURIDAD: DESVÍO DE RUTA NO AUTORIZADO',
+      description: `La unidad ${order.telemetry.vehiclePlate} se apartó de la ruta oficial planificada hacia ${deviatedStreet}. Auditoría satelital activada.`,
+      reportedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      location: { lat: deviatedLat, lng: deviatedLng },
+      streetName: deviatedStreet,
+      resolved: false,
+    };
+
+    order.telemetry.pathTraveled.push({
+      lat: deviatedLat,
+      lng: deviatedLng,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      speed: 15,
+      streetName: deviatedStreet,
+    });
+
+    soundAlerts.playNewOrderTone();
+    sendNativeNotification('⚠️ Desvío de Ruta Detectado', {
+      body: `Unidad ${order.telemetry.vehiclePlate} se desvió a ${deviatedStreet}. Alerta enviada al Jefe de Almacén.`,
+      soundType: 'alert',
+    });
+
+    this.notify();
+  }
+
+  // Resolver alerta de seguridad por el jefe de almacén
+  public resolveSecurityAlert(orderId: string, notes: string = 'Incidente verificado con el conductor.') {
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order || !order.telemetry || !order.telemetry.securityAlert) return;
+
+    order.telemetry.securityAlert.resolved = true;
+    order.telemetry.securityAlert.resolvedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    order.telemetry.securityAlert.resolvedNotes = notes;
+    order.telemetry.hasDeviation = false;
+
+    soundAlerts.playSuccessTone();
+    this.notify();
+  }
+
+  public confirmDelivery(
+    orderId: string,
+    proof: {
+      receivedBy: string;
+      dniRuc?: string;
+      signatureDataUrl?: string;
+      photoProofUrl?: string;
+      notes?: string;
+    }
+  ) {
     const order = this.orders.find((o) => o.id === orderId);
     if (!order) return;
 
@@ -499,7 +614,10 @@ class StoreManager {
     order.status = 'entregado';
     order.deliveryProof = {
       receivedBy: proof.receivedBy,
+      dniRuc: proof.dniRuc,
       deliveredAt: new Date().toISOString(),
+      signatureDataUrl: proof.signatureDataUrl,
+      photoProofUrl: proof.photoProofUrl,
       notes: proof.notes,
     };
 
@@ -507,6 +625,9 @@ class StoreManager {
       order.telemetry.isMoving = false;
       order.telemetry.etaMinutes = 0;
       order.telemetry.distanceRemainingKm = 0;
+      if (order.telemetry.securityAlert) {
+        order.telemetry.securityAlert.resolved = true;
+      }
     }
 
     if (order.assignedDriverId) {
@@ -518,6 +639,10 @@ class StoreManager {
     }
 
     soundAlerts.playSuccessTone();
+    sendNativeNotification('✅ Pedido Entregado con Éxito', {
+      body: `El pedido ${order.orderNumber} fue entregado a ${proof.receivedBy} con firma digital registrada.`,
+      soundType: 'success',
+    });
     this.notify();
   }
 
@@ -799,6 +924,9 @@ export function useAppStore() {
     createDemoOrder: () => store.createDemoOrder(),
     stepSimulationForward: (oId: string) => store.stepSimulationForward(oId),
     fastForwardSimulation: (oId: string) => store.fastForwardSimulation(oId),
+    triggerPanicAlert: (oId: string, reason?: string) => store.triggerPanicAlert(oId, reason),
+    simulateRouteDeviation: (oId: string) => store.simulateRouteDeviation(oId),
+    resolveSecurityAlert: (oId: string, notes?: string) => store.resolveSecurityAlert(oId, notes),
     resetToDefaultData: () => store.resetToDefaultData(),
   };
 }
