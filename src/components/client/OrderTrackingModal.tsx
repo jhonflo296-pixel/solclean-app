@@ -148,27 +148,82 @@ export const OrderTrackingModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Mensaje dinámico al cliente según estado */}
+          {/* Notificación de Proximidad en Tiempo Real al Cliente */}
           {currentOrder.status === 'en_camino' && telemetry && (
-            <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 rounded-xl shadow-md flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-amber-400 text-slate-900 flex items-center justify-center font-black animate-pulse">
-                  <Truck className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-xs uppercase font-bold text-amber-300 tracking-wider">
-                    ¡Tu pedido está en camino hacia tu dirección!
-                  </span>
-                  <p className="text-sm font-bold text-white mt-0.5">
-                    El repartidor <strong>{telemetry.driverName}</strong> ({telemetry.vehiclePlate}) está a{' '}
-                    <span className="text-amber-300 font-black">{telemetry.distanceRemainingKm} km</span> de tu entrega.
-                  </p>
-                </div>
-              </div>
+            <div className="space-y-3">
+              {/* Alerta de proximidad dinámica */}
+              <div className={`p-4 rounded-xl shadow-md border flex flex-wrap items-center justify-between gap-3 transition-all ${
+                telemetry.proximityAlert?.level === 'en_puerta'
+                  ? 'bg-gradient-to-r from-emerald-800 to-green-900 border-emerald-400 text-white animate-pulse'
+                  : telemetry.proximityAlert?.level === 'muy_cerca'
+                  ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 border-amber-300 text-white'
+                  : 'bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 border-blue-500/50 text-white'
+              }`}>
+                <div className="flex items-center gap-3.5">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black shadow-md ${
+                    telemetry.proximityAlert?.level === 'en_puerta'
+                      ? 'bg-white text-emerald-800 ring-4 ring-emerald-300'
+                      : telemetry.proximityAlert?.level === 'muy_cerca'
+                      ? 'bg-white text-orange-600 ring-4 ring-amber-300 animate-bounce'
+                      : 'bg-amber-400 text-slate-950'
+                  }`}>
+                    {telemetry.proximityAlert?.level === 'en_puerta' ? (
+                      <CheckCircle2 className="w-6 h-6" />
+                    ) : (
+                      <Truck className="w-6 h-6" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded tracking-wider ${
+                        telemetry.proximityAlert?.level === 'en_puerta'
+                          ? 'bg-white text-emerald-900 font-extrabold'
+                          : telemetry.proximityAlert?.level === 'muy_cerca'
+                          ? 'bg-white text-orange-900 font-extrabold'
+                          : 'bg-amber-400 text-slate-950 font-bold'
+                      }`}>
+                        {telemetry.proximityAlert?.level === 'en_puerta'
+                          ? '🔔 ¡PEDIDO EN PUERTA!'
+                          : telemetry.proximityAlert?.level === 'muy_cerca'
+                          ? '⚡ ¡ATENTO! MUY CERCA A TU DOMICILIO'
+                          : '🚗 PEDIDO EN CAMINO CON GPS'}
+                      </span>
+                      <span className="text-[11px] text-white/80 font-mono">
+                        {telemetry.lastUpdated}
+                      </span>
+                    </div>
 
-              <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/20 text-center">
-                <span className="text-[10px] uppercase text-blue-200 block font-semibold">Tiempo Estimado (ETA)</span>
-                <span className="text-2xl font-black text-amber-300">{telemetry.etaMinutes} min</span>
+                    <p className="text-sm font-bold text-white mt-1 leading-snug">
+                      {telemetry.proximityAlert?.message || (
+                        <>El repartidor <strong>{telemetry.driverName}</strong> está en camino a tu dirección.</>
+                      )}
+                    </p>
+
+                    {/* Vía urbana actual por donde se desplaza */}
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs">
+                      <span className="bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded text-amber-200 border border-white/10 font-medium">
+                        🛣 Conduciendo por: <strong>{telemetry.currentStreet || 'Calles de Lima'}</strong>
+                      </span>
+                      {telemetry.nextStreet && (
+                        <span className="text-slate-300 text-[11px]">
+                          Próximo giro: <strong className="text-white">{telemetry.nextStreet}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 bg-black/30 backdrop-blur-sm p-3 rounded-xl border border-white/20 text-center min-w-[120px] justify-center">
+                  <div>
+                    <span className="text-[10px] uppercase text-blue-200 block font-semibold">Llegada Aprox.</span>
+                    <span className="text-2xl font-black text-amber-300">
+                      {telemetry.etaMinutes <= 1 ? '< 1' : telemetry.etaMinutes} min
+                    </span>
+                    <span className="text-[10px] text-slate-300 block">
+                      {telemetry.distanceRemainingKm} km rest.
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           )}

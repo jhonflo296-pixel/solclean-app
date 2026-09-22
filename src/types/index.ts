@@ -62,6 +62,18 @@ export interface DeliveryLocation extends GeoCoordinate {
   city: string;
 }
 
+export interface ProximityAlert {
+  level: 'iniciando' | 'en_camino' | 'cerca' | 'muy_cerca' | 'en_puerta';
+  message: string;
+  streetName: string;
+  etaMinutes: number;
+  timestamp: string;
+}
+
+export interface StreetWaypoint extends GeoCoordinate {
+  streetName: string;
+}
+
 export interface DriverTelemetry {
   driverId: string;
   driverName: string;
@@ -69,7 +81,11 @@ export interface DriverTelemetry {
   vehicleModel: string;
   phone: string;
   currentPosition: GeoCoordinate;
-  pathTraveled: Array<GeoCoordinate & { timestamp: string; speed?: number }>;
+  currentStreet: string; // Nombre de la calle/avenida real por donde circula el auto
+  nextStreet?: string;   // Próxima avenida en la ruta
+  proximityAlert?: ProximityAlert; // Alerta de qué tan cerca está del cliente
+  pathTraveled: Array<GeoCoordinate & { timestamp: string; speed?: number; streetName?: string }>;
+  plannedStreetRoute?: StreetWaypoint[]; // Geometría real de calles trazada por OSRM
   etaMinutes: number;
   speedKmh: number;
   startedAt?: string;

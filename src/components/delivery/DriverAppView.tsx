@@ -193,6 +193,40 @@ export const DriverAppView: React.FC = () => {
               </div>
             </div>
 
+            {/* Panel de Vía Urbana y Notificación al Cliente */}
+            <div className="bg-slate-900 text-white p-3.5 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-slate-950 px-2 py-0.5 rounded">
+                    EN VÍA PÚBLICA
+                  </span>
+                  <span className="text-slate-400">
+                    Última actualización GPS: <strong className="text-white">{currentActiveOrder.telemetry?.lastUpdated}</strong>
+                  </span>
+                </div>
+                <p className="text-sm font-black text-white flex items-center gap-2">
+                  <span>🚗 Circulando por:</span>
+                  <span className="text-amber-300 font-extrabold">{currentActiveOrder.telemetry?.currentStreet || 'Calles de Lima'}</span>
+                </p>
+                {currentActiveOrder.telemetry?.nextStreet && (
+                  <p className="text-xs text-slate-300">
+                    ↪ Próximo giro: <strong className="text-cyan-300">{currentActiveOrder.telemetry.nextStreet}</strong>
+                  </p>
+                )}
+              </div>
+
+              {currentActiveOrder.telemetry?.proximityAlert && (
+                <div className="bg-slate-800 border border-slate-600 p-2.5 rounded-lg max-w-sm">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase block">
+                    Notificación enviada al Cliente:
+                  </span>
+                  <p className="text-[11px] text-slate-200 mt-0.5 italic">
+                    "{currentActiveOrder.telemetry.proximityAlert.message}"
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Mapa con la camioneta y la línea de ruta recorrida trazada */}
             <div>
               <div className="flex items-center justify-between mb-2">

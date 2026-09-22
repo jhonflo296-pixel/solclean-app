@@ -21,7 +21,9 @@ import {
   WAREHOUSE_LOCATION, 
   calculateDistanceKm, 
   calculateEtaMinutes, 
-  generateRouteWaypoints 
+  generateRouteWaypoints,
+  fetchRealStreetRoute,
+  computeProximityAlert
 } from '../utils/geoUtils';
 
 const STORAGE_KEYS = {
@@ -272,7 +274,7 @@ class StoreManager {
   }
 
   // Iniciar ruta de despacho con GPS en tiempo real
-  public startDriverRoute(orderId: string, driverId: string) {
+  public async startDriverRoute(orderId: string, driverId: string) {
     const order = this.orders.find((o) => o.id === orderId);
     const driver = this.workers.find((w) => w.id === driverId);
     if (!order || !driver) return;
@@ -291,6 +293,10 @@ class StoreManager {
       vehicleModel: 'Camioneta Sol Clean Reparto Rápido',
       phone: driver.phone,
       currentPosition: { ...WAREHOUSE_LOCATION },
+      currentStreet: 'Av. Separadora Industrial / Almacén Central',
+      nextStreet: 'Av. Nicolás de Ayllón',
+      proximityAlert: computeProximityAlert(totalDist, eta, 'Av. Separadora Industrial', driver.name),
+      plannedStreetRoute: [],
       pathTraveled: [
         {
           lat: WAREHOUSE_LOCATION.lat,
@@ -302,7 +308,7 @@ class StoreManager {
       etaMinutes: eta,
       speedKmh: 30,
       startedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      lastUpdated: 'Recién iniciado',
+      lastUpdated: 'Iniciando salida de almacén',
       isMoving: true,
       distanceRemainingKm: totalDist,
     };
@@ -313,24 +319,50 @@ class StoreManager {
     soundAlerts.playSuccessTone();
     this.notify();
 
+    // Obtener ruta real por calles y avenidas de Lima vía OSRM
+    try {
+      const realRoute = await fetchRealStreetRoute(WAREHOUSE_LOCATION, order.deliveryLocation);
+      if (realRoute && realRoute.length > 0 && order.telemetry) {
+        order.telemetry.plannedStreetRoute = realRoute;
+        order.telemetry.currentStreet = realRoute[0]?.streetName || order.telemetry.currentStreet;
+        order.telemetry.nextStreet = realRoute[1]?.streetName || order.telemetry.nextStreet;
+        order.telemetry.proximityAlert = computeProximityAlert(
+          totalDist,
+          eta,
+          order.telemetry.currentStreet || '',
+          driver.name
+        );
+        this.notify();
+      }
+    } catch {
+      // Fallback manejado internamente
+    }
+
     // Iniciar simulación de recorrido automático
     this.startSimulation(orderId);
   }
 
-  // Motor de simulación de GPS en tiempo real para repartidores
+  // Motor de simulación de GPS en tiempo real para repartidores con calles reales
   public startSimulation(orderId: string) {
     this.stopSimulation(orderId);
 
     const order = this.orders.find((o) => o.id === orderId);
     if (!order || !order.telemetry) return;
 
-    const waypoints = generateRouteWaypoints(
-      WAREHOUSE_LOCATION,
-      order.deliveryLocation,
-      25 // 25 pasos progresivos
-    );
+    let waypoints = order.telemetry.plannedStreetRoute;
+    if (!waypoints || waypoints.length === 0) {
+      waypoints = generateRouteWaypoints(
+        WAREHOUSE_LOCATION,
+        order.deliveryLocation,
+        28
+      ).map((pt, idx) => ({
+        ...pt,
+        streetName: `Calles de Lima (Tramo ${idx + 1})`,
+      }));
+      order.telemetry.plannedStreetRoute = waypoints;
+    }
 
-    let currentStep = 0;
+    let currentStep = Math.max(0, order.telemetry.pathTraveled.length - 1);
 
     const interval = window.setInterval(() => {
       const liveOrder = this.orders.find((o) => o.id === orderId);
@@ -344,11 +376,19 @@ class StoreManager {
       if (currentStep >= waypoints.length) {
         // Llegó al destino
         liveOrder.telemetry.currentPosition = { ...liveOrder.deliveryLocation };
+        liveOrder.telemetry.currentStreet = liveOrder.deliveryLocation.address || 'En puerta del cliente';
+        liveOrder.telemetry.nextStreet = undefined;
         liveOrder.telemetry.distanceRemainingKm = 0;
         liveOrder.telemetry.etaMinutes = 1;
         liveOrder.telemetry.isMoving = false;
         liveOrder.telemetry.speedKmh = 0;
         liveOrder.telemetry.lastUpdated = 'En puerta del cliente';
+        liveOrder.telemetry.proximityAlert = computeProximityAlert(
+          0,
+          1,
+          liveOrder.deliveryLocation.address || 'tu puerta',
+          liveOrder.telemetry.driverName
+        );
         liveOrder.telemetry.pathTraveled.push({
           lat: liveOrder.deliveryLocation.lat,
           lng: liveOrder.deliveryLocation.lng,
@@ -356,6 +396,7 @@ class StoreManager {
           speed: 0,
         });
 
+        soundAlerts.playSuccessTone();
         this.stopSimulation(orderId);
         this.notify();
         return;
@@ -363,11 +404,28 @@ class StoreManager {
 
       const nextPoint = waypoints[currentStep];
       const remainingDist = calculateDistanceKm(nextPoint, liveOrder.deliveryLocation);
-      const currentSpeed = Math.floor(Math.random() * 15) + 25; // 25-40 km/h
+      const currentSpeed = Math.floor(Math.random() * 12) + 26; // 26-38 km/h
+      const eta = calculateEtaMinutes(remainingDist, currentSpeed);
+      const currentStreet = nextPoint.streetName || liveOrder.telemetry.currentStreet || 'Vía Urbana de Lima';
+      const nextStreet = waypoints[currentStep + 1]?.streetName;
 
-      liveOrder.telemetry.currentPosition = nextPoint;
+      const prevLevel = liveOrder.telemetry.proximityAlert?.level;
+      const newAlert = computeProximityAlert(
+        remainingDist,
+        eta,
+        currentStreet,
+        liveOrder.telemetry.driverName
+      );
+
+      if (newAlert.level === 'muy_cerca' && prevLevel !== 'muy_cerca') {
+        soundAlerts.playSuccessTone();
+      }
+
+      liveOrder.telemetry.currentPosition = { lat: nextPoint.lat, lng: nextPoint.lng };
+      liveOrder.telemetry.currentStreet = currentStreet;
+      liveOrder.telemetry.nextStreet = nextStreet;
       liveOrder.telemetry.distanceRemainingKm = remainingDist;
-      liveOrder.telemetry.etaMinutes = calculateEtaMinutes(remainingDist, currentSpeed);
+      liveOrder.telemetry.etaMinutes = eta;
       liveOrder.telemetry.speedKmh = currentSpeed;
       liveOrder.telemetry.isMoving = true;
       liveOrder.telemetry.lastUpdated = new Date().toLocaleTimeString([], {
@@ -375,6 +433,7 @@ class StoreManager {
         minute: '2-digit',
         second: '2-digit',
       });
+      liveOrder.telemetry.proximityAlert = newAlert;
 
       // Trazado de ruta recorrida (seguridad anti-desvíos)
       liveOrder.telemetry.pathTraveled.push({
@@ -385,7 +444,7 @@ class StoreManager {
       });
 
       this.notify();
-    }, 3500); // Avanza cada 3.5 segundos para mostrar animación fluida
+    }, 3000);
 
     this.activeSimulations.set(orderId, interval);
   }
@@ -405,6 +464,7 @@ class StoreManager {
 
     const remainingDist = calculateDistanceKm(coord, order.deliveryLocation);
     const eta = calculateEtaMinutes(remainingDist, speedKmh);
+    const currentStreet = order.telemetry.currentStreet || 'En ruta hacia entrega';
 
     order.telemetry.currentPosition = coord;
     order.telemetry.speedKmh = speedKmh;
@@ -414,6 +474,12 @@ class StoreManager {
       hour: '2-digit',
       minute: '2-digit',
     });
+    order.telemetry.proximityAlert = computeProximityAlert(
+      remainingDist,
+      eta,
+      currentStreet,
+      order.telemetry.driverName
+    );
 
     order.telemetry.pathTraveled.push({
       lat: coord.lat,
@@ -521,11 +587,18 @@ class StoreManager {
     const order = this.orders.find((o) => o.id === orderId);
     if (!order || !order.telemetry) return;
 
-    const waypoints = generateRouteWaypoints(
-      WAREHOUSE_LOCATION,
-      order.deliveryLocation,
-      25
-    );
+    let waypoints = order.telemetry.plannedStreetRoute;
+    if (!waypoints || waypoints.length === 0) {
+      waypoints = generateRouteWaypoints(
+        WAREHOUSE_LOCATION,
+        order.deliveryLocation,
+        28
+      ).map((pt, idx) => ({
+        ...pt,
+        streetName: `Calles de Lima (Tramo ${idx + 1})`,
+      }));
+      order.telemetry.plannedStreetRoute = waypoints;
+    }
 
     const currentLen = order.telemetry.pathTraveled.length;
     if (currentLen >= waypoints.length) {
@@ -535,12 +608,25 @@ class StoreManager {
 
     const nextPoint = waypoints[currentLen];
     const remainingDist = calculateDistanceKm(nextPoint, order.deliveryLocation);
-    const speed = Math.floor(Math.random() * 15) + 25;
+    const speed = Math.floor(Math.random() * 12) + 26;
+    const eta = calculateEtaMinutes(remainingDist, speed);
+    const currentStreet = nextPoint.streetName || order.telemetry.currentStreet || 'Vía Urbana de Lima';
+    const nextStreet = waypoints[currentLen + 1]?.streetName;
 
-    order.telemetry.currentPosition = nextPoint;
+    const newAlert = computeProximityAlert(
+      remainingDist,
+      eta,
+      currentStreet,
+      order.telemetry.driverName
+    );
+
+    order.telemetry.currentPosition = { lat: nextPoint.lat, lng: nextPoint.lng };
+    order.telemetry.currentStreet = currentStreet;
+    order.telemetry.nextStreet = nextStreet;
     order.telemetry.distanceRemainingKm = remainingDist;
-    order.telemetry.etaMinutes = calculateEtaMinutes(remainingDist, speed);
+    order.telemetry.etaMinutes = eta;
     order.telemetry.speedKmh = speed;
+    order.telemetry.proximityAlert = newAlert;
     order.telemetry.lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     order.telemetry.pathTraveled.push({
       lat: nextPoint.lat,
@@ -558,11 +644,19 @@ class StoreManager {
 
     this.stopSimulation(orderId);
     order.telemetry.currentPosition = { ...order.deliveryLocation };
+    order.telemetry.currentStreet = order.deliveryLocation.address || 'En puerta del cliente';
+    order.telemetry.nextStreet = undefined;
     order.telemetry.distanceRemainingKm = 0;
     order.telemetry.etaMinutes = 1;
     order.telemetry.speedKmh = 0;
     order.telemetry.isMoving = false;
     order.telemetry.lastUpdated = 'En puerta del cliente (Listo para entrega)';
+    order.telemetry.proximityAlert = computeProximityAlert(
+      0,
+      1,
+      order.deliveryLocation.address || 'tu puerta',
+      order.telemetry.driverName
+    );
     order.telemetry.pathTraveled.push({
       lat: order.deliveryLocation.lat,
       lng: order.deliveryLocation.lng,

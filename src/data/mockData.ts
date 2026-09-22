@@ -320,8 +320,29 @@ export const INITIAL_ORDERS: Order[] = [
       phone: '991-882-334',
       currentPosition: {
         lat: -12.0954,
-        lng: -77.0142, // A mitad de camino por Vía Expresa / San Isidro
+        lng: -77.0142,
       },
+      currentStreet: 'Vía Expresa Luis Fernán Bedoya Reyes (altura Corpac / Javier Prado)',
+      nextStreet: 'Av. Paseo de la República / Av. Benavides',
+      proximityAlert: {
+        level: 'cerca',
+        message: '¡Tu pedido está cerca! El repartidor ya ingresó a tu zona y avanza por Vía Expresa (aprox. 12 min).',
+        streetName: 'Vía Expresa Luis Fernán Bedoya Reyes',
+        etaMinutes: 12,
+        timestamp: '15:30',
+      },
+      plannedStreetRoute: [
+        { lat: -12.0583, lng: -76.9934, streetName: 'Av. Separadora Industrial / Almacén' },
+        { lat: -12.0620, lng: -76.9960, streetName: 'Av. Nicolás de Ayllón' },
+        { lat: -12.0680, lng: -77.0010, streetName: 'Av. México' },
+        { lat: -12.0790, lng: -77.0080, streetName: 'Av. Nicolás Arriola' },
+        { lat: -12.0880, lng: -77.0120, streetName: 'Av. Javier Prado Este' },
+        { lat: -12.0954, lng: -77.0142, streetName: 'Vía Expresa Luis Fernán Bedoya Reyes' },
+        { lat: -12.1050, lng: -77.0190, streetName: 'Av. Paseo de la República' },
+        { lat: -12.1150, lng: -77.0240, streetName: 'Av. Angamos Este' },
+        { lat: -12.1200, lng: -77.0270, streetName: 'Av. José Pardo' },
+        { lat: -12.1225, lng: -77.0289, streetName: 'Av. José Larco 1120 (Destino)' },
+      ],
       pathTraveled: [
         { lat: -12.0583, lng: -76.9934, timestamp: '15:10', speed: 25 },
         { lat: -12.0680, lng: -77.0010, timestamp: '15:15', speed: 34 },
