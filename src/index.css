@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+:root {
+  --solclean-blue: #0066cc;
+  --solclean-blue-dark: #004d99;
+  --solclean-yellow: #ffcc33;
+  --solclean-yellow-dark: #e6b800;
+  --solclean-dark: #1a1a1a;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: #f8fafc;
+  color: #1e293b;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Leaflet map fix */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  font-family: inherit;
+}
+
+/* Pulse animation for active delivery vehicle */
+@keyframes vehicle-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 102, 204, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 15px rgba(0, 102, 204, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 102, 204, 0);
+  }
+}
+
+.driver-pulse-pin {
+  animation: vehicle-pulse 1.8s infinite;
+}
