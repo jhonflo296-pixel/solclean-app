@@ -20,9 +20,18 @@ import {
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const { products, orders, workers, updateProductStock, addProduct } = useAppStore();
+  const { products, orders, workers, updateProductStock, addProduct, resetToDefaultData } = useAppStore();
   const [selectedAuditOrder, setSelectedAuditOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState<'kpis' | 'seguridad' | 'catalogo'>('kpis');
+
+  // Modal para agregar producto
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdCategory, setNewProdCategory] = useState<any>('Hogar');
+  const [newProdDesc, setNewProdDesc] = useState('');
+  const [newProdPrice, setNewProdPrice] = useState(15.0);
+  const [newProdStock, setNewProdStock] = useState(100);
+  const [newProdSku, setNewProdSku] = useState('');
 
   // Métricas globales
   const totalSales = orders
@@ -32,6 +41,31 @@ export const AdminDashboard: React.FC = () => {
   const completedOrders = orders.filter((o) => o.status === 'entregado').length;
   const inTransitOrders = orders.filter((o) => o.status === 'en_camino').length;
   const totalProductsCount = products.length;
+
+  const handleCreateProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProdName.trim()) return;
+
+    addProduct({
+      sku: newProdSku || `SC-${Date.now().toString().slice(-4)}`,
+      name: newProdName,
+      category: newProdCategory,
+      description: newProdDesc || 'Producto de limpieza profesional Sol Clean Perú.',
+      image: 'https://www.solcleanperu.com/wp-content/uploads/2024/10/Banner-lejia-1.png',
+      presentations: [
+        { size: '1 Litro', price: newProdPrice, stock: Math.floor(newProdStock * 0.6) },
+        { size: 'Galón (3.8L)', price: newProdPrice * 2.8, stock: Math.floor(newProdStock * 0.4) },
+      ],
+      basePrice: newProdPrice,
+      totalStock: newProdStock,
+      minStockAlert: 20,
+    });
+
+    setIsAddProductOpen(false);
+    setNewProdName('');
+    setNewProdDesc('');
+    setNewProdSku('');
+  };
 
   // Descargar reporte CSV
   const handleExportCSV = () => {
@@ -315,9 +349,20 @@ export const AdminDashboard: React.FC = () => {
       {/* VISTA 3: GESTIÓN DE CATÁLOGO */}
       {activeTab === 'catalogo' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-800 text-sm">Catálogo y Stock de Sol Clean Perú</h3>
-            <span className="text-xs text-slate-500">Modifica el stock físico para pruebas en vivo</span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm">Catálogo y Stock de Sol Clean Perú</h3>
+              <span className="text-xs text-slate-500">Modifica el stock físico para pruebas en vivo o agrega nuevos productos</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsAddProductOpen(true)}
+              className="px-3.5 py-2 bg-[#0066cc] hover:bg-[#004d99] text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nuevo Producto</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
@@ -346,6 +391,114 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Crear Producto */}
+      {isAddProductOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4">
+            <h3 className="font-bold text-base text-slate-900 border-b pb-2">
+              Agregar Nuevo Producto al Catálogo
+            </h3>
+
+            <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Nombre del Producto *</label>
+                <input
+                  type="text"
+                  required
+                  value={newProdName}
+                  onChange={(e) => setNewProdName(e.target.value)}
+                  placeholder="Ej: Alcohol Isopropílico 99% Industrial"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Categoría</label>
+                  <select
+                    value={newProdCategory}
+                    onChange={(e) => setNewProdCategory(e.target.value as any)}
+                    className="w-full px-3 py-2 border rounded-lg font-semibold"
+                  >
+                    <option value="Hogar">Hogar</option>
+                    <option value="Ropa">Ropa</option>
+                    <option value="Cocina">Cocina</option>
+                    <option value="Baño">Baño</option>
+                    <option value="Hoteles">Hoteles</option>
+                    <option value="Auto">Auto</option>
+                    <option value="Accesorios">Accesorios</option>
+                    <option value="Papelería">Papelería</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">SKU</label>
+                  <input
+                    type="text"
+                    value={newProdSku}
+                    onChange={(e) => setNewProdSku(e.target.value)}
+                    placeholder="SC-ALC-013"
+                    className="w-full px-3 py-2 border rounded-lg font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Precio Base (S/)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={0.5}
+                    value={newProdPrice}
+                    onChange={(e) => setNewProdPrice(Number(e.target.value))}
+                    className="w-full px-3 py-2 border rounded-lg font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Stock Inicial</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newProdStock}
+                    onChange={(e) => setNewProdStock(Number(e.target.value))}
+                    className="w-full px-3 py-2 border rounded-lg font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Descripción</label>
+                <textarea
+                  rows={2}
+                  value={newProdDesc}
+                  onChange={(e) => setNewProdDesc(e.target.value)}
+                  placeholder="Fórmula desinfectante de rápida evaporación..."
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsAddProductOpen(false)}
+                  className="px-4 py-2 border rounded-lg text-slate-600 hover:bg-slate-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#0066cc] hover:bg-[#004d99] text-white font-bold rounded-lg shadow"
+                >
+                  Guardar en Catálogo
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

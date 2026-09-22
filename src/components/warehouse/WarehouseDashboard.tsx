@@ -21,6 +21,8 @@ import {
   ShieldAlert
 } from 'lucide-react';
 
+import { soundAlerts } from '../../utils/soundAlerts';
+
 interface Props {
   onOpenOrderDetails?: (order: Order) => void;
 }
@@ -32,7 +34,8 @@ export const WarehouseDashboard: React.FC<Props> = ({ onOpenOrderDetails }) => {
     products, 
     updateOrderStatus, 
     assignWorker, 
-    startDriverRoute 
+    startDriverRoute,
+    createDemoOrder
   } = useAppStore();
 
   const [dateFilter, setDateFilter] = useState<'todos' | 'hoy' | 'manana' | 'semana'>('todos');
@@ -101,6 +104,44 @@ export const WarehouseDashboard: React.FC<Props> = ({ onOpenOrderDetails }) => {
           </div>
         </div>
       )}
+
+      {/* Barra de Acciones de Prueba y Simulación para el Jefe de Almacén */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0066cc] flex items-center justify-center font-black text-sm">
+            ⚡
+          </div>
+          <div>
+            <span className="text-xs font-bold text-slate-800 block">
+              Simulador en Tiempo Real de Pedidos y Despachos
+            </span>
+            <span className="text-[11px] text-slate-500">
+              Genera pedidos inmediatos con geolocalización en Lima para probar la campana y la torre de control
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              createDemoOrder();
+            }}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs rounded-xl shadow-sm transition active:scale-95 flex items-center gap-1.5"
+          >
+            <BellRing className="w-4 h-4" />
+            <span>⚡ Simular Pedido con GPS (Probar Alarma)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => soundAlerts.playNewOrderAlert()}
+            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition border border-slate-200 flex items-center gap-1.5"
+          >
+            <span>🔔 Probar Tono Campana</span>
+          </button>
+        </div>
+      </div>
 
       {/* KPI Cards del Almacén */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

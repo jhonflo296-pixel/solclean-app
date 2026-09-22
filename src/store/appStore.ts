@@ -516,6 +516,152 @@ class StoreManager {
       this.notify();
     }
   }
+
+  public stepSimulationForward(orderId: string) {
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order || !order.telemetry) return;
+
+    const waypoints = generateRouteWaypoints(
+      WAREHOUSE_LOCATION,
+      order.deliveryLocation,
+      25
+    );
+
+    const currentLen = order.telemetry.pathTraveled.length;
+    if (currentLen >= waypoints.length) {
+      this.fastForwardSimulation(orderId);
+      return;
+    }
+
+    const nextPoint = waypoints[currentLen];
+    const remainingDist = calculateDistanceKm(nextPoint, order.deliveryLocation);
+    const speed = Math.floor(Math.random() * 15) + 25;
+
+    order.telemetry.currentPosition = nextPoint;
+    order.telemetry.distanceRemainingKm = remainingDist;
+    order.telemetry.etaMinutes = calculateEtaMinutes(remainingDist, speed);
+    order.telemetry.speedKmh = speed;
+    order.telemetry.lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    order.telemetry.pathTraveled.push({
+      lat: nextPoint.lat,
+      lng: nextPoint.lng,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      speed,
+    });
+
+    this.notify();
+  }
+
+  public fastForwardSimulation(orderId: string) {
+    const order = this.orders.find((o) => o.id === orderId);
+    if (!order || !order.telemetry) return;
+
+    this.stopSimulation(orderId);
+    order.telemetry.currentPosition = { ...order.deliveryLocation };
+    order.telemetry.distanceRemainingKm = 0;
+    order.telemetry.etaMinutes = 1;
+    order.telemetry.speedKmh = 0;
+    order.telemetry.isMoving = false;
+    order.telemetry.lastUpdated = 'En puerta del cliente (Listo para entrega)';
+    order.telemetry.pathTraveled.push({
+      lat: order.deliveryLocation.lat,
+      lng: order.deliveryLocation.lng,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      speed: 0,
+    });
+
+    soundAlerts.playSuccessTone();
+    this.notify();
+  }
+
+  public createDemoOrder(): Order {
+    const demoCustomers = [
+      { name: 'Hotel & Suites Miraflores Park', district: 'Miraflores', lat: -12.1298, lng: -77.0264, addr: 'Av. Malecón de la Reserva 1035' },
+      { name: 'Clínica San Borja Salud', district: 'San Borja', lat: -12.0886, lng: -76.9995, addr: 'Av. Guardia Civil 337' },
+      { name: 'Restaurante Central Cevichero', district: 'San Isidro', lat: -12.0975, lng: -77.0345, addr: 'Av. Camino Real 456' },
+      { name: 'Colegio Mayor San Fernando', district: 'Surco (Santiago de Surco)', lat: -12.1384, lng: -76.9942, addr: 'Calle Las Camelias 240' },
+      { name: 'Sede Corporativa Los Olivos', district: 'Los Olivos', lat: -11.9682, lng: -77.0658, addr: 'Av. Carlos Izaguirre 880' },
+    ];
+
+    const pick = demoCustomers[Math.floor(Math.random() * demoCustomers.length)];
+    const randProd1 = this.products[0] || INITIAL_PRODUCTS[0];
+    const randProd2 = this.products[1] || INITIAL_PRODUCTS[1];
+
+    const subtotal = (randProd1.basePrice * 2) + (randProd2.basePrice * 3);
+    const igv = subtotal * 0.18;
+    const distance = calculateDistanceKm(WAREHOUSE_LOCATION, { lat: pick.lat, lng: pick.lng });
+    const deliveryFee = distance > 15 ? 20 : distance > 8 ? 15 : 10;
+    const total = subtotal + igv + deliveryFee;
+
+    const orderNumber = `SC-2026-${String(this.orders.length + 1).padStart(3, '0')}`;
+
+    const newOrder: Order = {
+      id: `order-${Date.now()}`,
+      orderNumber,
+      createdAt: new Date().toISOString(),
+      scheduledDate: new Date().toISOString().split('T')[0],
+      scheduledTimeWindow: 'Urgente Express',
+      customer: {
+        name: pick.name,
+        email: 'contacto@cliente-demo.pe',
+        phone: '9' + Math.floor(10000000 + Math.random() * 90000000),
+        dniRuc: '20' + Math.floor(100000000 + Math.random() * 900000000),
+      },
+      deliveryLocation: {
+        lat: pick.lat,
+        lng: pick.lng,
+        address: pick.addr,
+        reference: 'Frente a puerta principal',
+        district: pick.district,
+        city: 'Lima',
+      },
+      items: [
+        {
+          productId: randProd1.id,
+          productName: randProd1.name,
+          productImage: randProd1.image,
+          presentation: randProd1.presentations[0]?.size || '1 Galón',
+          unitPrice: randProd1.basePrice,
+          quantity: 2,
+          picked: false,
+        },
+        {
+          productId: randProd2.id,
+          productName: randProd2.name,
+          productImage: randProd2.image,
+          presentation: randProd2.presentations[0]?.size || '1 Galón',
+          unitPrice: randProd2.basePrice,
+          quantity: 3,
+          picked: false,
+        },
+      ],
+      subtotal: Math.round(subtotal * 100) / 100,
+      igv: Math.round(igv * 100) / 100,
+      deliveryFee,
+      total: Math.round(total * 100) / 100,
+      paymentMethod: 'yape',
+      status: 'pendiente',
+      notes: 'Pedido de prueba express con geolocalización satelital.',
+    };
+
+    this.orders = [newOrder, ...this.orders];
+
+    // 🔔 ¡Alerta sonora instantánea para el Jefe de Almacén!
+    soundAlerts.playNewOrderAlert();
+
+    this.notify();
+    return newOrder;
+  }
+
+  public resetToDefaultData() {
+    this.products = INITIAL_PRODUCTS;
+    this.orders = INITIAL_ORDERS;
+    this.supplierOrders = INITIAL_SUPPLIER_ORDERS;
+    this.workers = WAREHOUSE_WORKERS;
+    this.cart = [];
+    localStorage.clear();
+    this.notify();
+  }
 }
 
 export const store = new StoreManager();
@@ -556,5 +702,9 @@ export function useAppStore() {
     updateProductStock: (id: string, s: number) => store.updateProductStock(id, s),
     addProduct: (p: Parameters<typeof store.addProduct>[0]) => store.addProduct(p),
     updateProduct: (id: string, u: Parameters<typeof store.updateProduct>[1]) => store.updateProduct(id, u),
+    createDemoOrder: () => store.createDemoOrder(),
+    stepSimulationForward: (oId: string) => store.stepSimulationForward(oId),
+    fastForwardSimulation: (oId: string) => store.fastForwardSimulation(oId),
+    resetToDefaultData: () => store.resetToDefaultData(),
   };
 }

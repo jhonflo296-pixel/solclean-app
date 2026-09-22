@@ -14,21 +14,35 @@ import {
   PackageCheck
 } from 'lucide-react';
 
+import { useAppStore } from '../../store/appStore';
+
 interface Props {
   order: Order | null;
   isOpen: boolean;
   onClose: () => void;
+  onSelectOrder?: (order: Order) => void;
 }
 
 export const OrderTrackingModal: React.FC<Props> = ({
-  order,
+  order: propOrder,
   isOpen,
   onClose,
+  onSelectOrder,
 }) => {
-  if (!isOpen || !order) return null;
+  const { orders } = useAppStore();
+  const [selectedId, setSelectedId] = React.useState<string>(propOrder?.id || '');
 
-  const statusInfo = getStatusDetails(order.status);
-  const telemetry = order.telemetry;
+  React.useEffect(() => {
+    if (propOrder) setSelectedId(propOrder.id);
+  }, [propOrder]);
+
+  if (!isOpen) return null;
+
+  const currentOrder = orders.find((o) => o.id === selectedId) || propOrder || orders[0];
+  if (!currentOrder) return null;
+
+  const statusInfo = getStatusDetails(currentOrder.status);
+  const telemetry = currentOrder.telemetry;
 
   const stages = [
     { title: 'Pedido Recibido', desc: 'Registrado en almacén', step: 1 },
@@ -42,7 +56,7 @@ export const OrderTrackingModal: React.FC<Props> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[95vh]">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+        <div className="bg-slate-900 text-white p-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center">
               <Truck className="w-5 h-5 text-white" />
@@ -50,23 +64,43 @@ export const OrderTrackingModal: React.FC<Props> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-bold text-base leading-tight">
-                  Rastreo en Vivo: {order.orderNumber}
+                  Rastreo en Vivo: {currentOrder.orderNumber}
                 </h2>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold border ${statusInfo.badgeClass}`}>
                   {statusInfo.label}
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Cliente: <strong>{order.customer.name}</strong> • Entrega programada: {formatDate(order.scheduledDate)}
+                Cliente: <strong>{currentOrder.customer.name}</strong> • Entrega programada: {formatDate(currentOrder.scheduledDate)}
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-slate-800 transition text-slate-400 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2">
+            {/* Selector rápido de pedidos */}
+            <select
+              value={currentOrder.id}
+              onChange={(e) => {
+                setSelectedId(e.target.value);
+                const found = orders.find(o => o.id === e.target.value);
+                if (found && onSelectOrder) onSelectOrder(found);
+              }}
+              className="bg-slate-800 text-xs text-white px-2.5 py-1.5 rounded-lg border border-slate-700 font-semibold focus:outline-none"
+            >
+              {orders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.orderNumber} - {o.customer.name.substring(0, 18)}... ({o.status})
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg hover:bg-slate-800 transition text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content Body */}
@@ -115,7 +149,7 @@ export const OrderTrackingModal: React.FC<Props> = ({
           </div>
 
           {/* Mensaje dinámico al cliente según estado */}
-          {order.status === 'en_camino' && telemetry && (
+          {currentOrder.status === 'en_camino' && telemetry && (
             <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 rounded-xl shadow-md flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-amber-400 text-slate-900 flex items-center justify-center font-black animate-pulse">
@@ -154,7 +188,7 @@ export const OrderTrackingModal: React.FC<Props> = ({
               )}
             </div>
 
-            <LiveTrackingMap order={order} heightClass="h-[360px]" showDetailsBar={false} />
+            <LiveTrackingMap order={currentOrder} heightClass="h-[360px]" showDetailsBar={false} />
           </div>
 
           {/* Ficha de Detalles de Entrega y Productos */}
@@ -165,17 +199,17 @@ export const OrderTrackingModal: React.FC<Props> = ({
                 Información de Destino
               </h4>
               <p>
-                <strong className="text-slate-700">Dirección:</strong> {order.deliveryLocation.address} ({order.deliveryLocation.district})
+                <strong className="text-slate-700">Dirección:</strong> {currentOrder.deliveryLocation.address} ({currentOrder.deliveryLocation.district})
               </p>
               <p>
-                <strong className="text-slate-700">Referencia:</strong> {order.deliveryLocation.reference || 'Sin referencia'}
+                <strong className="text-slate-700">Referencia:</strong> {currentOrder.deliveryLocation.reference || 'Sin referencia'}
               </p>
               <p>
-                <strong className="text-slate-700">Teléfono Contacto:</strong> {order.customer.phone}
+                <strong className="text-slate-700">Teléfono Contacto:</strong> {currentOrder.customer.phone}
               </p>
-              {order.notes && (
+              {currentOrder.notes && (
                 <p className="bg-amber-50 p-2 rounded border border-amber-200 text-amber-900">
-                  <strong>Nota del Cliente:</strong> {order.notes}
+                  <strong>Nota del Cliente:</strong> {currentOrder.notes}
                 </p>
               )}
               {telemetry?.phone && (
@@ -196,10 +230,10 @@ export const OrderTrackingModal: React.FC<Props> = ({
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5">
               <h4 className="font-bold text-slate-800 border-b pb-1 text-xs uppercase tracking-wider flex items-center justify-between">
                 <span>Productos del Pedido</span>
-                <span>Total: {formatPEN(order.total)}</span>
+                <span>Total: {formatPEN(currentOrder.total)}</span>
               </h4>
               <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                {order.items.map((it, idx) => (
+                {currentOrder.items.map((it, idx) => (
                   <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-200/60 last:border-0">
                     <div>
                       <span className="font-bold text-slate-800">{it.productName}</span>
@@ -210,9 +244,9 @@ export const OrderTrackingModal: React.FC<Props> = ({
                 ))}
               </div>
 
-              {order.deliveryProof && (
+              {currentOrder.deliveryProof && (
                 <div className="mt-2 p-2 bg-emerald-50 rounded-lg border border-emerald-200 text-emerald-900 text-[11px]">
-                  <strong>Recibido por:</strong> {order.deliveryProof.receivedBy} a las {new Date(order.deliveryProof.deliveredAt).toLocaleTimeString()}
+                  <strong>Recibido por:</strong> {currentOrder.deliveryProof.receivedBy} a las {new Date(currentOrder.deliveryProof.deliveredAt).toLocaleTimeString()}
                 </div>
               )}
             </div>

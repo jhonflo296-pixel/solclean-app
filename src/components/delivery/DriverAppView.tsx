@@ -24,7 +24,8 @@ export const DriverAppView: React.FC = () => {
     workers, 
     startDriverRoute, 
     confirmDelivery, 
-    updateDriverLocation 
+    stepSimulationForward,
+    fastForwardSimulation
   } = useAppStore();
 
   const [selectedDriverId, setSelectedDriverId] = useState('driver-1');
@@ -126,14 +127,32 @@ export const DriverAppView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => stepSimulationForward(currentActiveOrder.id)}
+                title="Avanza 1 tramo en la ruta de Lima inmediatamente"
+                className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-xl transition backdrop-blur-sm border border-white/20 active:scale-95 flex items-center gap-1"
+              >
+                <span>⏩ Avanzar 1 Paso GPS</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fastForwardSimulation(currentActiveOrder.id)}
+                title="Ubica el camión en la puerta del cliente para entrega inmediata"
+                className="px-3 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl transition shadow active:scale-95 flex items-center gap-1"
+              >
+                <span>🏁 Llegar a Puerta</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => handleOpenDeliveryModal(currentActiveOrder)}
                 className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition shadow active:scale-95 flex items-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Confirmar Entrega en Destino</span>
+                <span>Confirmar Entrega</span>
               </button>
             </div>
           </div>

@@ -132,9 +132,26 @@ export const WorkerPortal: React.FC = () => {
 
                   {/* Checklist de Productos (Picking) */}
                   <div className="space-y-2">
-                    <span className="text-xs font-bold text-slate-700 block">
-                      Lista de Verificación de Insumos:
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 block">
+                        Lista de Verificación de Insumos:
+                      </span>
+                      {!allPicked && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            order.items.forEach((it) => {
+                              if (!it.picked) {
+                                toggleItemPicked(order.id, it.productId, it.presentation);
+                              }
+                            });
+                          }}
+                          className="text-[11px] text-[#0066cc] hover:underline font-bold"
+                        >
+                          ⚡ Marcar todos como recogidos
+                        </button>
+                      )}
+                    </div>
                     <div className="grid grid-cols-1 gap-2">
                       {order.items.map((item) => {
                         const isPicked = !!item.picked;
